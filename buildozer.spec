@@ -1,27 +1,37 @@
 [app]
-title = Naam Jaap Counter
-package.name = naamjaap
-package.domain = org.naamjaap
+
+# App details
+title = My Application
+package.name = myapp
+package.domain = org.test
+
+# Source code location
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas,db,ttf
-version = 2.0
-requirements = python3==3.11.6,kivy==2.3.0,hostpython3==3.11.6,pillow,android
-android.permissions = WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,VIBRATE
+source.include_exts = py,png,jpg,kv,atlas
+
+# Application versioning
+version = 0.1
+
+# Application requirements (Apne packages yahan add karein)
+requirements = python3,kivy
+
+# Android Specific Settings
+android.permissions = INTERNET
 android.api = 33
 android.minapi = 21
 android.ndk = 25b
-android.ndk_api = 21
-android.accept_sdk_license = True
-android.entrypoint = org.kivy.android.PythonActivity
-android.apptheme = "@android:style/Theme.NoTitleBar"
+android.archs = arm64-v8a, armeabi-v7a
+android.accept_sdk_licenses = True
+
+# Buildozer log level (2 = debug info)
+log_level = 2
+
+# Display settings
 orientation = portrait
 fullscreen = 0
-android.presplash_color = #0A0514
-android.enable_androidx = True
-android.archs = arm64-v8a
 
 [buildozer]
+
+# Log level and warnings
 log_level = 2
-warn_on_root = 0
-build_dir = ./.buildozer
-bin_dir = ./bin
+warn_on_root = 1

@@ -52,10 +52,9 @@ jobs:
       - name: Build APK
         run: |
           buildozer -v android debug 2>&1 | tee build.log
-          echo "=== BUILD COMPLETE ==="
           echo "=== Checking bin/ folder ==="
           ls -la bin/ || echo "bin/ folder not found"
-          find . -name "*.apk" 2>/dev/null || echo "No APK found anywhere"
+          find . -name "*.apk" 2>/dev/null || echo "No APK found"
         env:
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
 

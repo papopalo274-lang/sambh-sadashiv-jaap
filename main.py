@@ -187,9 +187,9 @@ class ParticleWidget(Widget):
 
     def burst(self, theme):
         colors = theme["mandala"]
+        cx = self.width / 2 if self.width > 0 else Window.width / 2
+        cy = self.height / 2 if self.height > 0 else Window.height / 2
         for _ in range(40):
-            cx = self.width / 2
-            cy = self.height / 2
             angle = random.uniform(0, 2 * math.pi)
             speed = random.uniform(3, 9)
             vx = math.cos(angle) * speed
@@ -232,17 +232,20 @@ class ParticleWidget(Widget):
 
 # ─── Mandala Button ───────────────────────────────────────────────────────────
 class MandalaButton(Widget):
-    angle    = NumericProperty(0)
-    scale    = NumericProperty(1.0)
+    angle = NumericProperty(0)
+    scale = NumericProperty(1.0)
     glow_alpha = NumericProperty(0.0)
 
     def __init__(self, theme, **kw):
         super().__init__(**kw)
+        self.register_event_type('on_mandala_tap')
         self.theme = theme
-        self._anim_event = None
         self.bind(pos=self._draw, size=self._draw, angle=self._draw,
                   scale=self._draw, glow_alpha=self._draw)
         Clock.schedule_interval(self._spin, 1/30)
+
+    def on_mandala_tap(self):
+        pass
 
     def set_theme(self, theme):
         self.theme = theme
@@ -250,11 +253,10 @@ class MandalaButton(Widget):
 
     def _spin(self, dt):
         self.angle = (self.angle + 0.4) % 360
-        self._draw()
 
     def _draw(self, *_):
         self.canvas.clear()
-        if self.width <= 0:
+        if self.width <= 0 or self.height <= 0:
             return
         cx = self.x + self.width / 2
         cy = self.y + self.height / 2
@@ -262,19 +264,19 @@ class MandalaButton(Widget):
         t  = self.theme
 
         with self.canvas:
-            # ── glow aura ──
+            # Glow aura
             for i in range(5, 0, -1):
                 a = self.glow_alpha * (i / 5) * 0.5
                 gr, gg, gb, _ = t["glow"]
                 Color(gr, gg, gb, a)
-                gr_r = r + dp(i * 10)
+                gr_r = r + dp(i * 8)
                 Ellipse(pos=(cx-gr_r, cy-gr_r), size=(gr_r*2, gr_r*2))
 
-            # ── outer ring ──
+            # Outer ring
             Color(*t["gold"][:3], 0.7)
             Line(circle=(cx, cy, r), width=dp(2))
 
-            # ── petal mandala (2 layers, counter-rotating) ──
+            # Petal mandala (2 layers)
             petals   = 12
             colors   = t["mandala"]
             petal_r  = r * 0.30
@@ -290,7 +292,7 @@ class MandalaButton(Widget):
                     Ellipse(pos=(px - petal_r/2, py - petal_r*0.85),
                             size=(petal_r, petal_r * 1.7))
 
-            # ── inner star ──
+            # Inner star
             Color(*t["gold"][:3], 0.9)
             pts = []
             for i in range(8):
@@ -301,45 +303,74 @@ class MandalaButton(Widget):
             pts += [pts[0], pts[1]]
             Line(points=pts, width=dp(1.5))
 
-            # ── center circle ──
+            # Center circle
             cr = r * 0.28
             Color(*t["accent"][:3], 0.92)
             Ellipse(pos=(cx-cr, cy-cr), size=(cr*2, cr*2))
-
-            # ── OM symbol ──
-            Color(*t["gold"])
 
     def on_touch_down(self, touch):
         if self.collide_point(*touch.pos):
             self.glow_alpha = 1.0
             Animation(scale=0.93, duration=0.08).start(self)
             return True
+        return super().on_touch_down(touch)
 
     def on_touch_up(self, touch):
         if self.collide_point(*touch.pos):
             Animation(scale=1.0, duration=0.12).start(self)
             Animation(glow_alpha=0.0, duration=0.5).start(self)
-            if self.parent:
-                self.parent.dispatch('on_mandala_tap')
+            self.dispatch('on_mandala_tap')
             return True
+        return super().on_touch_up(touch)
+
+# ─── Mala Bead Ring Widget ────────────────────────────────────────────────────
+class MalaRingWidget(Widget):
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self._beads = 0
+        self._theme = list(THEMES.values())[0]
+        self.bind(size=self._draw, pos=self._draw)
+
+    def update(self, beads, theme):
+        self._beads = beads
+        self._theme = theme
+        self._draw()
+
+    def _draw(self, *_):
+        self.canvas.clear()
+        if self.width <= 0 or self.height <= 0: return
+        with self.canvas:
+            cx = self.x + self.width / 2
+            cy = self.y + self.height / 2
+            rx = self.width / 2 - dp(12)
+            ry = self.height / 2 - dp(4)
+            bead_r = dp(3)
+            total = 108
+            for i in range(total):
+                ang = math.radians(i * 360 / total - 90)
+                bx = cx + math.cos(ang) * rx
+                by = cy + math.sin(ang) * ry
+                if i < self._beads:
+                    Color(*self._theme["gold"])
+                    Ellipse(pos=(bx-bead_r, by-bead_r), size=(bead_r*2, bead_r*2))
+                else:
+                    Color(*self._theme["text"][:3], 0.25)
+                    Ellipse(pos=(bx-bead_r*0.6, by-bead_r*0.6),
+                            size=(bead_r*1.2, bead_r*1.2))
 
 # ─── Main Screen ─────────────────────────────────────────────────────────────
 class JaapScreen(Screen):
     def __init__(self, app_ref, **kw):
         super().__init__(**kw)
         self.app = app_ref
-        self.register_event_type('on_mandala_tap')
         self._build_ui()
-
-    def on_mandala_tap(self, *_):
-        pass  # overridden below
 
     def _build_ui(self):
         self.root_layout = FloatLayout()
 
         # Background
         self.bg_widget = Widget(size_hint=(1,1))
-        self._draw_bg()
+        self.bg_widget.bind(size=self._draw_bg, pos=self._draw_bg)
         self.root_layout.add_widget(self.bg_widget)
 
         # Particles layer
@@ -371,32 +402,32 @@ class JaapScreen(Screen):
         # ── Mantra name ──
         self.mantra_name_lbl = Label(
             text=self.app.current_mantra["name"],
-            font_size=sp(18), bold=True,
+            font_size=sp(20), bold=True,
             color=self.app.theme["gold"],
             size_hint=(1, 0.06), halign='center', valign='middle')
         self.mantra_name_lbl.bind(size=self.mantra_name_lbl.setter('text_size'))
         main.add_widget(self.mantra_name_lbl)
 
         # ── Mala progress ring label ──
-        self.mala_progress_lbl = Label(text="", font_size=sp(11),
+        self.mala_progress_lbl = Label(text="", font_size=sp(12),
             color=self.app.theme["text"],
             size_hint=(1, 0.04), halign='center', valign='middle')
         self.mala_progress_lbl.bind(size=self.mala_progress_lbl.setter('text_size'))
         main.add_widget(self.mala_progress_lbl)
 
         # ── Mala ring widget ──
-        self.mala_ring = MalaRingWidget(size_hint=(1, 0.06))
+        self.mala_ring = MalaRingWidget(size_hint=(1, 0.05))
         main.add_widget(self.mala_ring)
 
         # ── Mandala button ──
         mandala_wrap = FloatLayout(size_hint=(1, 0.38))
-        self.mandala = MandalaButton(theme=self.app.theme, size_hint=(0.78, 0.78),
+        self.mandala = MandalaButton(theme=self.app.theme, size_hint=(0.85, 0.85),
                                      pos_hint={'center_x': 0.5, 'center_y': 0.5})
-        self.mandala.bind(on_touch_up=self._mandala_touch)
+        self.mandala.bind(on_mandala_tap=self._on_tap)
         mandala_wrap.add_widget(self.mandala)
 
         # OM label in center of mandala
-        self.om_lbl = Label(text="🕉", font_size=sp(52),
+        self.om_lbl = Label(text="🕉", font_size=sp(50),
                             size_hint=(0.4, 0.4),
                             pos_hint={'center_x': 0.5, 'center_y': 0.5},
                             halign='center', valign='middle')
@@ -413,7 +444,7 @@ class JaapScreen(Screen):
         # ── Count display ──
         self.count_lbl = Label(
             text=str(self.app.count),
-            font_size=sp(64), bold=True,
+            font_size=sp(60), bold=True,
             color=self.app.theme["counter"],
             size_hint=(1, 0.14), halign='center', valign='middle')
         self.count_lbl.bind(size=self.count_lbl.setter('text_size'))
@@ -469,12 +500,12 @@ class JaapScreen(Screen):
         b.bind(on_press=cb)
         return b
 
-    def _draw_bg(self):
+    def _draw_bg(self, *_):
         self.bg_widget.canvas.clear()
         with self.bg_widget.canvas:
             Color(*self.app.theme["bg"])
             Rectangle(pos=self.bg_widget.pos, size=Window.size)
-            # gradient overlay circle
+            # Gradient overlay circle
             Color(*self.app.theme["bg2"][:3], 0.6)
             Ellipse(pos=(-Window.width*0.2, Window.height*0.2),
                     size=(Window.width*1.4, Window.width*1.4))
@@ -494,10 +525,6 @@ class JaapScreen(Screen):
         self.mala_progress_lbl.text = f"● {bead}/108 मनके"
         self.mala_ring.update(bead, self.app.theme)
         self.mantra_name_lbl.text = self.app.current_mantra["name"]
-
-    def _mandala_touch(self, widget, touch):
-        if widget.collide_point(*touch.pos) and touch.phase == 'end':
-            self._on_tap(None)
 
     def _on_tap(self, *_):
         self.app.count += 1
@@ -531,9 +558,14 @@ class JaapScreen(Screen):
         content.add_widget(lbl); content.add_widget(btns)
         pop = Popup(title="⚠️ रीसेट करें?", content=content,
                     size_hint=(0.85, 0.32), auto_dismiss=True)
-        yes.bind(on_press=lambda *_: (reset_mantra(self.app.current_mantra["name"]),
-                                      setattr(self.app, 'count', 0),
-                                      self._refresh_ui(), pop.dismiss()))
+        
+        def _do_reset(*_):
+            reset_mantra(self.app.current_mantra["name"])
+            self.app.count = 0
+            self._refresh_ui()
+            pop.dismiss()
+
+        yes.bind(on_press=_do_reset)
         no.bind(on_press=pop.dismiss)
         pop.open()
 
@@ -631,40 +663,6 @@ class JaapScreen(Screen):
         self.tap_btn.background_color = t["accent"]
         self.mala_progress_lbl.color  = t["text"]
         self.mala_ring.update(self.app.count % 108, t)
-
-# ─── Mala Bead Ring Widget ────────────────────────────────────────────────────
-class MalaRingWidget(Widget):
-    def __init__(self, **kw):
-        super().__init__(**kw)
-        self._beads = 0
-        self._theme = list(THEMES.values())[0]
-        self.bind(size=self._draw, pos=self._draw)
-
-    def update(self, beads, theme):
-        self._beads = beads
-        self._theme = theme
-        self._draw()
-
-    def _draw(self, *_):
-        self.canvas.clear()
-        if self.width <= 0: return
-        with self.canvas:
-            cx = self.x + self.width / 2
-            cy = self.y + self.height / 2
-            ring_r = min(self.width / 2 - dp(6), self.height / 2 - dp(4))
-            bead_r = dp(4)
-            total = 108
-            for i in range(total):
-                ang = math.radians(i * 360 / total - 90)
-                bx = cx + math.cos(ang) * ring_r
-                by = cy + math.sin(ang) * ring_r
-                if i < self._beads:
-                    Color(*self._theme["gold"])
-                    Ellipse(pos=(bx-bead_r, by-bead_r), size=(bead_r*2, bead_r*2))
-                else:
-                    Color(*self._theme["text"][:3], 0.20)
-                    Ellipse(pos=(bx-bead_r*0.7, by-bead_r*0.7),
-                            size=(bead_r*1.4, bead_r*1.4))
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 class JaapApp(App):

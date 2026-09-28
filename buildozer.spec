@@ -1,27 +1,33 @@
 [app]
 
-# (High Fix) App identity - update package.domain and package.name to match your real organization/app
-title = Your App Name
-package.name = your_app_name
-package.domain = com.yourdomain
+# Application metadata
+title = Sambh Sadashiv Jaap
+package.name = sambhsadashivjaap
+package.domain = com.papopalo274.sambhsadashivjaap
 
-# Source files and inclusions
+# Source files and extensions
 source.dir = .
-# (Medium Fix) Restored wav, mp3, and ttf extensions to prevent missing media and custom font assets at runtime
 source.include_exts = py,png,jpg,kv,atlas,wav,mp3,ttf
 
-# (Minor Fix) Restored versioning back to 1.0.0
+# Versioning
 version = 1.0.0
 
-# Application requirements
+# Dependencies
 requirements = python3,kivy
 
-# UI configuration
+# UI Settings
 orientation = portrait
 fullscreen = 0
 
-# Android specific configurations
+# Android SDK / NDK Specifications
 android.api = 33
 android.minapi = 21
+# Pin NDK to 25b to maintain compatibility with python-for-android
 android.ndk = 25b
 android.accept_sdk_license = True
+
+# Target single architecture for cleaner and faster builds
+android.archs = arm64-v8a
+
+# Log level (2 = debug output)
+log_level = 2

@@ -1,3 +1,4 @@
+```yaml
 name: Build Naam Jaap APK
 
 on:
@@ -10,40 +11,27 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-22.04
 
     steps:
 
-      # --------------------------------------------------
-      # Checkout
-      # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
 
-      # --------------------------------------------------
-      # Python 3.11
-      # --------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
 
-      # --------------------------------------------------
-      # Java 17
-      # --------------------------------------------------
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
 
-      # --------------------------------------------------
-      # System dependencies
-      # --------------------------------------------------
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -62,7 +50,6 @@ jobs:
             zlib1g-dev \
             libncurses5-dev \
             libncursesw5-dev \
-            libtinfo5 \
             cmake \
             libffi-dev \
             libssl-dev \
@@ -70,10 +57,7 @@ jobs:
             ccache
 
 
-      # --------------------------------------------------
-      # Python build tools
-      # --------------------------------------------------
-      - name: Install Buildozer and Cython
+      - name: Install Python build tools
         run: |
           python -m pip install --upgrade pip setuptools wheel
 
@@ -83,79 +67,128 @@ jobs:
             virtualenv
 
 
-      # --------------------------------------------------
-      # Verify environment
-      # --------------------------------------------------
-      - name: Show build versions
+      - name: Show versions
         run: |
+          echo "===== PYTHON ====="
           python --version
-          pip --version
+
+          echo "===== JAVA ====="
           java -version
+
+          echo "===== BUILDOZER ====="
           buildozer --version
+
+          echo "===== CYTHON ====="
           cython --version
 
 
-      # --------------------------------------------------
-      # Cache Buildozer
-      # --------------------------------------------------
       - name: Cache Buildozer
         uses: actions/cache@v4
         with:
           path: |
             ~/.buildozer
             .buildozer
-          key: |
-            buildozer-${{ runner.os }}-py311-${{ hashFiles('buildozer.spec') }}-${{ hashFiles('main.py') }}
+          key: buildozer-py311-${{ hashFiles('buildozer.spec') }}-${{ hashFiles('main.py') }}
           restore-keys: |
-            buildozer-${{ runner.os }}-py311-
+            buildozer-py311-
 
 
-      # --------------------------------------------------
-      # Clean old build
-      # --------------------------------------------------
       - name: Clean previous build
         run: |
           buildozer android clean || true
 
 
-      # --------------------------------------------------
-      # Build APK
-      # --------------------------------------------------
-      - name: Build debug APK
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
+      - name: Build APK
         run: |
           mkdir -p logs
 
+          echo "===== START BUILDOZER BUILD ====="
+
           buildozer -v android debug 2>&1 | tee logs/build.log
 
+          BUILD_EXIT=${PIPESTATUS[0]}
 
-      # --------------------------------------------------
-      # Check APK
-      # --------------------------------------------------
-      - name: Check APK output
+          echo "Buildozer exit code: ${BUILD_EXIT}"
+
+          exit ${BUILD_EXIT}
+
+
+      - name: Inspect build output
+        if: always()
         run: |
-          echo "APK files:"
-          find bin -maxdepth 1 -type f -name "*.apk" -print
+          echo "======================================"
+          echo "CURRENT DIRECTORY"
+          echo "======================================"
+          pwd
 
-          test -n "$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          echo "======================================"
+          echo "ROOT FILES"
+          echo "======================================"
+          ls -la
+
+          echo "======================================"
+          echo "BIN DIRECTORY"
+          echo "======================================"
+
+          if [ -d bin ]; then
+            ls -lah bin
+          else
+            echo "bin directory does not exist"
+          fi
+
+          echo "======================================"
+          echo "SEARCHING FOR APK FILES"
+          echo "======================================"
+
+          find . -type f -name "*.apk" -print || true
+
+          echo "======================================"
+          echo "SEARCHING FOR AAB FILES"
+          echo "======================================"
+
+          find . -type f -name "*.aab" -print || true
 
 
-      # --------------------------------------------------
-      # Upload APK
-      # --------------------------------------------------
+      - name: Verify APK
+        run: |
+          APK_COUNT=$(find . -type f -name "*.apk" | wc -l)
+
+          echo "APK count: ${APK_COUNT}"
+
+          if [ "${APK_COUNT}" -eq 0 ]; then
+            echo ""
+            echo "ERROR: No APK was generated."
+            echo ""
+            echo "The Buildozer log must be checked."
+            exit 1
+          fi
+
+          echo ""
+          echo "APK FOUND:"
+          find . -type f -name "*.apk" -print
+
+
+      - name: Collect APK
+        if: success()
+        run: |
+          mkdir -p artifacts
+
+          find . -type f -name "*.apk" -exec cp {} artifacts/ \;
+
+          echo "Collected APK files:"
+          ls -lah artifacts
+
+
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: NaamJaap-v2-debug-apk
-          path: bin/*.apk
+          path: artifacts/*.apk
           if-no-files-found: error
           retention-days: 30
 
 
-      # --------------------------------------------------
-      # Upload build log
-      # --------------------------------------------------
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
@@ -164,3 +197,4 @@ jobs:
           path: logs/build.log
           if-no-files-found: warn
           retention-days: 14
+```

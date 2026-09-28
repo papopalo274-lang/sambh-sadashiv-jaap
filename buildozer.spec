@@ -1,33 +1,84 @@
-[app]
+name: Build Android APK
 
-# Application metadata
-title = Sambh Sadashiv Jaap
-package.name = sambhsadashivjaap
-package.domain = com.papopalo274.sambhsadashivjaap
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
 
-# Source files and extensions
-source.dir = .
-source.include_exts = py,png,jpg,kv,atlas,wav,mp3,ttf
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
 
-# Versioning
-version = 1.0.0
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-# Dependencies
-requirements = python3,kivy
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
-# UI Settings
-orientation = portrait
-fullscreen = 0
+      - name: Cache buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: bz-${{ hashFiles('buildozer.spec') }}
+          restore-keys: bz-
 
-# Android SDK / NDK Specifications
-android.api = 33
-android.minapi = 21
-# Pin NDK to 25b to maintain compatibility with python-for-android
-android.ndk = 25b
-android.accept_sdk_license = True
+      - name: Install system packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            git zip unzip \
+            openjdk-17-jdk \
+            python3-pip \
+            autoconf libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            libsqlite3-dev \
+            lld ccache \
+            build-essential
 
-# Target single architecture for cleaner and faster builds
-android.archs = arm64-v8a
+      - name: Setup Java 17
+        run: |
+          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
+          echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> $GITHUB_PATH
 
-# Log level (2 = debug output)
-log_level = 2
+      - name: Install buildozer and cython
+        run: |
+          pip install --upgrade pip
+          pip install buildozer==1.5.0 cython==0.29.33 virtualenv
+
+      - name: Setup Android SDK licenses
+        run: |
+          mkdir -p $HOME/.android
+          touch $HOME/.android/repositories.cfg
+
+      - name: Build APK
+        run: buildozer -v android debug 2>&1 | tee build.log
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+
+      - name: Upload APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaamJaap-APK
+          path: bin/*.apk
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 7

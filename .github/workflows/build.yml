@@ -1,93 +1,61 @@
-name: Naam Jaap APK
+name: Build Naam Jaap APK
 
-on: workflow_dispatch
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.10"
 
-      - name: Java
-        uses: actions/setup-java@v5
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git zip unzip openjdk-17-jdk \
+            python3-pip autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev cmake libffi-dev \
+            libssl-dev libsqlite3-dev lld ccache
+
+      - name: Install Python Build Tools
+        run: |
+          pip install --upgrade pip
+          pip install buildozer==1.5.0 cython==0.29.33 virtualenv
+
+      - name: Cache Buildozer Global Dependencies
+        uses: actions/cache@v4
         with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git \
-            zip \
-            unzip \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            libsqlite3-dev \
-            ccache
-
-      - name: Install Buildozer
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install buildozer==1.5.0
-          python -m pip install cython==0.29.33
-          python -m pip install virtualenv
-
-      - name: Check files
-        run: |
-          echo "Python:"
-          python --version
-
-          echo "Java:"
-          java -version
-
-          echo "Buildozer:"
-          buildozer --version
-
-          echo "Files:"
-          ls -la
-
-          test -f main.py
-          test -f buildozer.spec
+          path: ~/.buildozer
+          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-global-
 
       - name: Build APK
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
         run: |
-          mkdir -p logs
-          buildozer -v android debug 2>&1 | tee logs/build.log
-          exit ${PIPESTATUS[0]}
+          buildozer -v android debug
 
-      - name: Find APK
-        if: always()
-        run: |
-          find . -type f -name "*.apk" -print || true
-
-      - name: Upload APK
-        if: success()
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: NaamJaap-v2-debug-apk
           path: bin/*.apk
+          retention-days: 30
           if-no-files-found: error
 
-      - name: Upload log
-        if: always()
+      - name: Upload Build Log on Failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: NaamJaap-build-log
-          path: logs/build.log
-          if-no-files-found: warn
+          name: build-log
+          path: .buildozer/android/platform/build-arm64-v8a_armeabi-v7a/build/other_builds/
+          retention-days: 7

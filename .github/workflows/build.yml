@@ -47,6 +47,32 @@ jobs:
           zip \
           unzip
 
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install Android SDK Build Tools
+      shell: bash
+      run: |
+        # Accept licenses
+        yes | sdkmanager --licenses || true
+        
+        # Install required SDK packages for Android API 33
+        sdkmanager --update
+        sdkmanager \
+          "platform-tools" \
+          "platforms;android-33" \
+          "build-tools;33.0.0" \
+          "ndk;25.1.8937393"
+        
+        # Set environment variables
+        echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
+        echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+        echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+        echo "$ANDROID_HOME/build-tools/33.0.0" >> "$GITHUB_PATH"
+        
+        # Verify aidl is available
+        ls -la "$ANDROID_HOME/build-tools/33.0.0/aidl"
+
     - name: Install Buildozer & Cython
       run: |
         pip install --upgrade pip

@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Code
@@ -40,7 +40,11 @@ jobs:
             automake \
             libtool \
             pkg-config \
-            cmake
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            zip \
+            unzip
 
       - name: Install Buildozer & Dependencies
         run: |
@@ -48,6 +52,8 @@ jobs:
           pip install buildozer cython==0.29.36 virtualenv
 
       - name: Build APK with Buildozer
+        env:
+          APP_ANDROID_NDK: 25b
         run: |
           buildozer -v android debug
 

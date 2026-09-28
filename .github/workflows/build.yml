@@ -1,4 +1,4 @@
-name: Build Naam Jaap APK
+name: Build Android APK
 
 on:
   push:
@@ -8,54 +8,35 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
 
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y git zip unzip openjdk-17-jdk \
-            python3-pip autoconf libtool pkg-config zlib1g-dev \
-            libncurses5-dev libncursesw5-dev cmake libffi-dev \
-            libssl-dev libsqlite3-dev lld ccache
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git zip unzip openjdk-17-jdk \
+          python3-pip autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev cmake libffi-dev \
+          libssl-dev libsqlite3-dev lld ccache
 
-      - name: Install Python Build Tools
-        run: |
-          pip install --upgrade pip
-          pip install buildozer==1.5.0 cython==0.29.33 virtualenv
+    - name: Install Buildozer & Cython
+      run: |
+        pip install --upgrade pip setuptools
+        pip install buildozer cython==0.29.33 virtualenv
 
-      - name: Cache Buildozer Global Dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            buildozer-global-
+    - name: Build APK with Buildozer
+      run: |
+        buildozer -v android debug
 
-      - name: Build APK
-        env:
-          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
-        run: |
-          buildozer -v android debug
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NaamJaap-v2-debug-apk
-          path: bin/*.apk
-          retention-days: 30
-          if-no-files-found: error
-
-      - name: Upload Build Log on Failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: .buildozer/android/platform/build-arm64-v8a_armeabi-v7a/build/other_builds/
-          retention-days: 7
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Sambh-Sadashiv-Jaap-APK
+        path: bin/*.apk

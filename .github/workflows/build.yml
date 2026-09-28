@@ -1,106 +1,166 @@
-name: Build Android APK
+name: Build Naam Jaap APK
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
+
   workflow_dispatch:
 
 jobs:
   build:
+
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      # --------------------------------------------------
+      # Checkout
+      # --------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install System Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          git \
-          ffmpeg \
-          libsdl2-dev \
-          libsdl2-image-dev \
-          libsdl2-mixer-dev \
-          libsdl2-ttf-dev \
-          libportmidi-dev \
-          libswscale-dev \
-          libavformat-dev \
-          libavcodec-dev \
-          zlib1g-dev \
-          openjdk-17-jdk \
-          autoconf \
-          automake \
-          libtool \
-          pkg-config \
-          cmake \
-          ninja-build \
-          ccache \
-          zip \
-          unzip
-    - name: Configure Java 17
-      shell: bash
-      run: |
-        JAVA17_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
 
-        if [[ ! -x "$JAVA17_HOME/bin/java" ]]; then
-          echo "JDK 17 was not found at $JAVA17_HOME"
-          exit 1
-        fi
+      # --------------------------------------------------
+      # Python 3.11
+      # --------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-        echo "JAVA_HOME=$JAVA17_HOME" >> "$GITHUB_ENV"
-        echo "$JAVA17_HOME/bin" >> "$GITHUB_PATH"
 
-        sudo update-alternatives --set java "$JAVA17_HOME/bin/java"
-        sudo update-alternatives --set javac "$JAVA17_HOME/bin/javac"
+      # --------------------------------------------------
+      # Java 17
+      # --------------------------------------------------
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
-        "$JAVA17_HOME/bin/java" -version
-    - name: Set up Android SDK
-      uses: android-actions/setup-android@v3
 
-    - name: Install Android SDK Build Tools
-      shell: bash
-      run: |
-        # Accept licenses
-        yes | sdkmanager --licenses || true
-        
-        # Install required SDK packages for Android API 33
-        sdkmanager --update
-        sdkmanager \
-          "platform-tools" \
-          "platforms;android-33" \
-          "build-tools;33.0.0" \
-          "ndk;25.1.8937393"
-        
-        # Set environment variables
-        echo "ANDROIDSDK=$ANDROID_HOME" >> "$GITHUB_ENV"
-        echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
-        echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
-        echo "$ANDROID_HOME/build-tools/33.0.0" >> "$GITHUB_PATH"
-        
-        # Verify aidl is available
-        ls -la "$ANDROID_HOME/build-tools/33.0.0/aidl"
+      # --------------------------------------------------
+      # System dependencies
+      # --------------------------------------------------
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
 
-    - name: Install Buildozer & Cython
-      run: |
-        pip install --upgrade pip
-        pip install cython==0.29.33
-        pip install buildozer
+          sudo apt-get install -y \
+            git \
+            zip \
+            unzip \
+            openjdk-17-jdk \
+            python3-pip \
+            python3-virtualenv \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libtinfo5 \
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            libsqlite3-dev \
+            ccache
 
-    - name: Build APK with Buildozer
-      run: |
-        buildozer -v android debug
 
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-debug
-        path: bin/*.apk
+      # --------------------------------------------------
+      # Python build tools
+      # --------------------------------------------------
+      - name: Install Buildozer and Cython
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+
+          python -m pip install \
+            buildozer==1.5.0 \
+            cython==0.29.33 \
+            virtualenv
+
+
+      # --------------------------------------------------
+      # Verify environment
+      # --------------------------------------------------
+      - name: Show build versions
+        run: |
+          python --version
+          pip --version
+          java -version
+          buildozer --version
+          cython --version
+
+
+      # --------------------------------------------------
+      # Cache Buildozer
+      # --------------------------------------------------
+      - name: Cache Buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: |
+            buildozer-${{ runner.os }}-py311-${{ hashFiles('buildozer.spec') }}-${{ hashFiles('main.py') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-py311-
+
+
+      # --------------------------------------------------
+      # Clean old build
+      # --------------------------------------------------
+      - name: Clean previous build
+        run: |
+          buildozer android clean || true
+
+
+      # --------------------------------------------------
+      # Build APK
+      # --------------------------------------------------
+      - name: Build debug APK
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+        run: |
+          mkdir -p logs
+
+          buildozer -v android debug 2>&1 | tee logs/build.log
+
+
+      # --------------------------------------------------
+      # Check APK
+      # --------------------------------------------------
+      - name: Check APK output
+        run: |
+          echo "APK files:"
+          find bin -maxdepth 1 -type f -name "*.apk" -print
+
+          test -n "$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)"
+
+
+      # --------------------------------------------------
+      # Upload APK
+      # --------------------------------------------------
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaamJaap-v2-debug-apk
+          path: bin/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+
+      # --------------------------------------------------
+      # Upload build log
+      # --------------------------------------------------
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaamJaap-build-log
+          path: logs/build.log
+          if-no-files-found: warn
+          retention-days: 14

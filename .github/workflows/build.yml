@@ -46,7 +46,23 @@ jobs:
           ccache \
           zip \
           unzip
+    - name: Configure Java 17
+      shell: bash
+      run: |
+        JAVA17_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
 
+        if [[ ! -x "$JAVA17_HOME/bin/java" ]]; then
+          echo "JDK 17 was not found at $JAVA17_HOME"
+          exit 1
+        fi
+
+        echo "JAVA_HOME=$JAVA17_HOME" >> "$GITHUB_ENV"
+        echo "$JAVA17_HOME/bin" >> "$GITHUB_PATH"
+
+        sudo update-alternatives --set java "$JAVA17_HOME/bin/java"
+        sudo update-alternatives --set javac "$JAVA17_HOME/bin/javac"
+
+        "$JAVA17_HOME/bin/java" -version
     - name: Set up Android SDK
       uses: android-actions/setup-android@v3
 

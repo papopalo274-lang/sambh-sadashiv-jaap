@@ -11,27 +11,38 @@ on:
 
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-22.04
 
     steps:
 
+      # --------------------------------------------------
+      # 1. Checkout source code
+      # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
+      # --------------------------------------------------
+      # 2. Setup Python
+      # --------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
-
+      # --------------------------------------------------
+      # 3. Setup Java 17
+      # --------------------------------------------------
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: "temurin"
           java-version: "17"
 
-
+      # --------------------------------------------------
+      # 4. Install Linux dependencies
+      # --------------------------------------------------
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -56,75 +67,147 @@ jobs:
             libsqlite3-dev \
             ccache
 
-
-      - name: Install Python build tools
+      # --------------------------------------------------
+      # 5. Upgrade Python packaging tools
+      # --------------------------------------------------
+      - name: Upgrade Python packaging tools
         run: |
-          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade setuptools
+          python -m pip install --upgrade wheel
 
-          python -m pip install \
-            buildozer==1.5.0 \
-            cython==0.29.33 \
-            virtualenv
-
-
-      - name: Show versions
+      # --------------------------------------------------
+      # 6. Install Buildozer and Cython
+      # --------------------------------------------------
+      - name: Install Buildozer
         run: |
-          echo "===== PYTHON ====="
+          python -m pip install buildozer==1.5.0
+          python -m pip install cython==0.29.33
+          python -m pip install virtualenv
+
+      # --------------------------------------------------
+      # 7. Show environment versions
+      # --------------------------------------------------
+      - name: Show build environment
+        run: |
+          echo "======================================"
+          echo "PYTHON"
+          echo "======================================"
           python --version
 
-          echo "===== JAVA ====="
+          echo "======================================"
+          echo "JAVA"
+          echo "======================================"
           java -version
 
-          echo "===== BUILDOZER ====="
+          echo "======================================"
+          echo "BUILDOZER"
+          echo "======================================"
           buildozer --version
 
-          echo "===== CYTHON ====="
+          echo "======================================"
+          echo "CYTHON"
+          echo "======================================"
           cython --version
 
+          echo "======================================"
+          echo "PROJECT FILES"
+          echo "======================================"
+          ls -la
 
+      # --------------------------------------------------
+      # 8. Cache Buildozer downloads/build files
+      # --------------------------------------------------
       - name: Cache Buildozer
         uses: actions/cache@v4
         with:
           path: |
             ~/.buildozer
             .buildozer
+
           key: buildozer-py311-${{ hashFiles('buildozer.spec') }}-${{ hashFiles('main.py') }}
+
           restore-keys: |
             buildozer-py311-
 
+      # --------------------------------------------------
+      # 9. Check required files
+      # --------------------------------------------------
+      - name: Check project files
+        run: |
+          echo "======================================"
+          echo "Checking buildozer.spec"
+          echo "======================================"
 
-      - name: Clean previous build
+          if [ ! -f buildozer.spec ]; then
+            echo "ERROR: buildozer.spec not found!"
+            exit 1
+          fi
+
+          echo "buildozer.spec FOUND"
+
+          echo "======================================"
+          echo "Checking main.py"
+          echo "======================================"
+
+          if [ ! -f main.py ]; then
+            echo "ERROR: main.py not found!"
+            exit 1
+          fi
+
+          echo "main.py FOUND"
+
+          echo "======================================"
+          echo "Buildozer requirements"
+          echo "======================================"
+
+          grep -n "^requirements" buildozer.spec || true
+
+      # --------------------------------------------------
+      # 10. Clean old Buildozer build
+      # --------------------------------------------------
+      - name: Clean previous Buildozer build
         run: |
           buildozer android clean || true
 
-
+      # --------------------------------------------------
+      # 11. Build APK
+      # --------------------------------------------------
       - name: Build APK
         run: |
           mkdir -p logs
 
-          echo "===== START BUILDOZER BUILD ====="
+          echo "======================================"
+          echo "STARTING BUILDOZER ANDROID BUILD"
+          echo "======================================"
 
           buildozer -v android debug 2>&1 | tee logs/build.log
 
           BUILD_EXIT=${PIPESTATUS[0]}
 
-          echo "Buildozer exit code: ${BUILD_EXIT}"
+          echo "======================================"
+          echo "BUILDOZER EXIT CODE: ${BUILD_EXIT}"
+          echo "======================================"
 
           exit ${BUILD_EXIT}
 
-
+      # --------------------------------------------------
+      # 12. Inspect output even if build fails
+      # --------------------------------------------------
       - name: Inspect build output
         if: always()
         run: |
           echo "======================================"
           echo "CURRENT DIRECTORY"
           echo "======================================"
+
           pwd
 
           echo "======================================"
           echo "ROOT FILES"
           echo "======================================"
-          ls -la
+
+          ls -lah
 
           echo "======================================"
           echo "BIN DIRECTORY"
@@ -148,38 +231,55 @@ jobs:
 
           find . -type f -name "*.aab" -print || true
 
-
+      # --------------------------------------------------
+      # 13. Verify APK exists
+      # --------------------------------------------------
       - name: Verify APK
         run: |
           APK_COUNT=$(find . -type f -name "*.apk" | wc -l)
 
-          echo "APK count: ${APK_COUNT}"
+          echo "======================================"
+          echo "APK COUNT: ${APK_COUNT}"
+          echo "======================================"
 
           if [ "${APK_COUNT}" -eq 0 ]; then
             echo ""
-            echo "ERROR: No APK was generated."
+            echo "ERROR: NO APK WAS GENERATED."
             echo ""
-            echo "The Buildozer log must be checked."
+            echo "The Buildozer build failed."
+            echo "Please check the Build APK step and build log."
             exit 1
           fi
 
           echo ""
-          echo "APK FOUND:"
+          echo "APK FILE(S) FOUND:"
+          echo ""
+
           find . -type f -name "*.apk" -print
 
-
+      # --------------------------------------------------
+      # 14. Copy APK to artifacts folder
+      # --------------------------------------------------
       - name: Collect APK
         if: success()
         run: |
           mkdir -p artifacts
 
-          find . -type f -name "*.apk" -exec cp {} artifacts/ \;
+          find . \
+            -type f \
+            -name "*.apk" \
+            -exec cp {} artifacts/ \;
 
-          echo "Collected APK files:"
+          echo "======================================"
+          echo "COLLECTED APK FILES"
+          echo "======================================"
+
           ls -lah artifacts
 
-
-      - name: Upload APK
+      # --------------------------------------------------
+      # 15. Upload APK
+      # --------------------------------------------------
+      - name: Upload APK artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -188,7 +288,9 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-
+      # --------------------------------------------------
+      # 16. Upload complete Buildozer log
+      # --------------------------------------------------
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
